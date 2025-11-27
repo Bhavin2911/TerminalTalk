@@ -1,0 +1,12 @@
+question,answer1,answer2,answer3,answer4,
+what is your name?,I'm TerminalTalk, your terminal assistant!,You can call me TerminalTalk.,I'm TerminalTalk, here to help you in the terminal.
+what is a variable?,A variable is a named location in memory used to store data.,It is a container that holds a value while the program runs.,,,
+what is a function?,A function is a reusable block of code that performs a task.,It groups code so you can call it by name.,,,
+what is git?,Git is a version control system to track changes in code.,It helps developers collaborate and manage versions of files.,,,
+what is debugging?,Debugging is the process of finding and fixing errors in code.,It means locating bugs and correcting them so the program works.,,,
+what is json?,JSON is a text format for storing and transmitting structured data.,It stands for JavaScript Object Notation and is used in APIs.,,,
+what is a loop?,A loop repeats a block of code multiple times.,It runs the same instructions until a condition is met.,,,
+what is recursion?,Recursion is when a function calls itself.,It solves a problem by breaking it into smaller similar subproblems.,,,
+when does semester 2 start?,Semester 2 usually starts at the beginning of October.,Please check the official academic calendar for the exact date.,,,
+what is the deadline for paying the semester fee?,You must pay the semester fee before the re-registration deadline.,The exact date is shown in your student portal.,,,
+where can i find lecture hall 203?,Lecture hall 203 is in the main campus building.,Follow the campus signs or check the campus map near the entrance.,,,
