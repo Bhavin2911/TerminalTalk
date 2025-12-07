@@ -1,12 +1,13 @@
-# import difflib
 import time
 import argparse
 import random
 import csv
 import os
 import json 
+import logging
+from logging.handlers import RotatingFileHandler
+from datetime import datetime
 
-# -------- FASTEMBED semantic embeddings --------
 from fastembed import TextEmbedding
 import numpy as np
 
@@ -138,6 +139,86 @@ QA_DATA = {
         "Exam registration is done online. Check the deadlines in your portal."
     ],
 }
+
+TRIVIA_QUESTIONS = [
+    {
+        "question": "What is the name of the University's online student portal?",
+        "options": ["A. Moodle", "B. UniPortal", "C. CampusNet", "D. LearnSpace"],
+        "correct": "C"
+    },
+    {
+        "question": "Where can students find the official exam schedule?",
+        "options": ["A. Cafeteria menu board", "B. Student portal", "C. Gym notice board", "D. Library basement"],
+        "correct": "B"
+    },
+    {
+        "question": "What document is usually required to collect a student ID card?",
+        "options": ["A. Passport photo", "B. Valid photo ID", "C. Doctor's note", "D. Birth certificate"],
+        "correct": "B"
+    },
+    {
+        "question": "Which building contains the main library?",
+        "options": ["A. Building A", "B. Building L", "C. Building C", "D. Building B"],
+        "correct": "A"
+    },
+    {
+        "question": "Where can students reset their university password?",
+        "options": ["A. The examination office", "B. The IT helpdesk portal", "C. The gym registration desk", "D. Lecture hall 203"],
+        "correct": "B"
+    },
+    {
+        "question": "What does OOP stand for in computer science?",
+        "options": ["A. Office Operation Plan", "B. Object-Oriented Programming", "C. Official Online Process", "D. Online Output Page"],
+        "correct": "B"
+    },
+    {
+        "question": "Which campus location is typically used for large exams?",
+        "options": ["A. The gym hall", "B. Lecture hall 203", "C. Building A rooftop", "D. The library study rooms"],
+        "correct": "B"
+    },
+    {
+        "question": "Where can a student get their semester timetable?",
+        "options": ["A. Student portal", "B. Library desk", "C. Campus café", "D. By email from professors"],
+        "correct": "A"
+    },
+    {
+        "question": "Which service does the cafeteria primarily provide?",
+        "options": ["A. Free textbooks", "B. Meals and drinks", "C. Parking permits", "D. Medical check-ups"],
+        "correct": "B"
+    },
+    {
+        "question": "Who can help students with academic registration issues?",
+        "options": ["A. IT department", "B. Admissions office", "C. Sports center staff", "D. Cafeteria chef"],
+        "correct": "B"
+    },
+    {
+        "question": "What is JSON commonly used for?",
+        "options": ["A. Drawing images", "B. Storing structured data", "C. Writing essays", "D. Software installation"],
+        "correct": "B"
+    },
+    {
+        "question": "Which office manages exam results?",
+        "options": ["A. Admissions office", "B. Examination office", "C. Library helpdesk", "D. Campus security"],
+        "correct": "B"
+    },
+    {
+        "question": "Where does the semester typically start?",
+        "options": ["A. Beginning of October", "B. End of December", "C. Middle of June", "D. March 1st"],
+        "correct": "A"
+    },
+    {
+        "question": "What programming structure allows repeating actions?",
+        "options": ["A. Loop", "B. Folder", "C. Filter", "D. Module"],
+        "correct": "A"
+    },
+    {
+        "question": "What do students usually use the library for?",
+        "options": ["A. Sleeping", "B. Studying and borrowing books", "C. Printing ID cards", "D. Submitting exam papers"],
+        "correct": "B"
+    }
+]
+
+
 QUESTION_LIST = None
 QUESTION_EMBEDDINGS = None
 
@@ -182,8 +263,59 @@ def list_questions():
         print(f"- {q}")
 
 
-def load_questions_from_csv(filepath: str):
+def safe_import_csv(filepath: str):
+    try:
+        logger = logging.getLogger(__name__)
 
+        logger.info("Attempting CSV import: %s", filepath)
+        # Check file exists
+        if not os.path.exists(filepath):
+            logger.warning("CSV import failed: file not found: %s", filepath)
+            print(f"{current_time()} ERROR: File path not found: {filepath}")
+            print(f"{current_time()} Import aborted. Using internal questions.")
+            return None
+
+        # Check extension
+        if not filepath.lower().endswith(".csv"):
+            print(f"{current_time()} ERROR: Unsupported file type. Only .csv allowed.")
+            print(f"{current_time()} Import aborted. Using internal questions.")
+            return None
+
+        # Try to open file to check access rights
+        with open(filepath, "r", encoding="utf-8") as f:
+            pass  # we only check whether opening is possible
+
+        # If everything is okay → call the real CSV loader
+        load_questions_from_csv(filepath)
+
+    except PermissionError:
+        logger.warning("CSV import permission error for file: %s", filepath)
+        print(f"{current_time()} ERROR: Insufficient access rights to read file.")
+        print(f"{current_time()} Import aborted. Using internal questions.")
+        return None
+
+    except UnicodeDecodeError:
+        logger.warning("CSV import corrupted or badly encoded: %s", filepath)
+        print(f"{current_time()} ERROR: CSV file appears corrupted or has invalid encoding.")
+        print(f"{current_time()} Import aborted. Using internal questions.")
+        return None
+
+    except csv.Error:
+        logger.warning("CSV file format is invalid/corrupted.: %s", filepath)
+
+        print(f"{current_time()} ERROR: CSV file format is invalid/corrupted.")
+        print(f"{current_time()} Import aborted. Using internal questions.")
+        return None
+
+    except Exception as e:
+        print(f"{current_time()} Unexpected import error: {e}")
+        print(f"{current_time()} Import aborted. Using internal questions.")
+        return None
+
+
+def load_questions_from_csv(filepath: str):
+    logger = logging.getLogger(__name__)
+    logger.info("Loading CSV file: %s", filepath)
     global IMPORTED_QA
 
     if not os.path.exists(filepath):
@@ -229,6 +361,8 @@ def load_questions_from_csv(filepath: str):
             if len(qa_dict) < 10:
                 print(f"{current_time()} WARNING: CSV has only {len(qa_dict)} Q&A pairs (min 10 suggested).")
             IMPORTED_QA = qa_dict
+            logger.info("CSV loaded: %d questions imported", len(qa_dict))
+
             print(f"{current_time()} Imported {len(qa_dict)} questions from CSV file: {filepath}")
 
     except Exception as e:
@@ -383,7 +517,10 @@ def remove_question_cli(question: str, answers: list[str] | None = None):
 SIMILARITY_THRESHOLD = 0.45  # tune as needed (0.5–0.6 is good)
 
 def get_answer(question):
+    logger = logging.getLogger(__name__)
     global QUESTION_LIST, QUESTION_EMBEDDINGS
+    logger.debug("get_answer() called with: %s", question)
+    logger.info("Received question: %s", question)
 
     q = question.lower().strip()
     qa_dict = known_questions()
@@ -391,10 +528,12 @@ def get_answer(question):
     # 1) Exact or substring match (old behavior preserved)
     for key, answers in qa_dict.items():
         if key == q or key in q or q in key:
+            logger.debug("Exact/substring match found. Key='%s', Selected Answer='%s'", key, random.choice(answers))
             return random.choice(answers)
 
     # 2) Semantic fastembed match
     if QUESTION_EMBEDDINGS is None:
+        logger.debug("Embeddings not loaded. Rebuilding embeddings.")
         rebuild_embeddings()
 
     # Embed user question
@@ -409,9 +548,14 @@ def get_answer(question):
     best_score = scores[best_idx]
     best_question = QUESTION_LIST[best_idx]
 
-    if best_score >= SIMILARITY_THRESHOLD:
-        return random.choice(qa_dict[best_question])
+    logger.debug("Semantic search: Best match='%s', Score=%.3f", best_question, best_score)
 
+    if best_score >= SIMILARITY_THRESHOLD:
+        logger.debug("Semantic match accepted. Selected Answer='%s'", random.choice(qa_dict[best_question]))
+        logger.info("Semantic match: '%s' -> '%s' (score=%.3f)", question, best_question, best_score)
+        return random.choice(qa_dict[best_question])
+    
+    logger.warning("No match found for question: %s", question)
     return "Sorry, I don't recognize that question."
 
 
@@ -468,6 +612,11 @@ def chat_mode():
             print(f"{current_time()} You can ask about:\n" + "\n".join(known_questions().keys()))
             continue
 
+        if user_input.lower() == "trivia":
+            trivia_game()
+            print(f"{current_time()} Trivia finished. Resuming normal chat...\n")
+            continue    
+        
         # numeric selection from suggestion list
         if suggestions is not None and user_input.isdigit():
             idx = int(user_input) - 1
@@ -508,8 +657,94 @@ def direct_mode(question):
     print(f"{current_time()} {get_answer(question)}")
 
 
+class CustomArgumentParser(argparse.ArgumentParser):
+    def error(self, message):
+        # Called when user passes unknown or invalid arguments
+        print(f"\nERROR: {message}\n")
+        self.print_help()   # show help text
+        exit(2)             # exit instead of running chat mode
+
+def trivia_game():
+    print(f"{current_time()} Trivia mode activated! Type 'trivia' again to exit the game early.\n")
+
+    score = 0
+    asked = 0
+    total_questions = 10
+
+    # Make a shuffled copy so we don't modify original
+    questions = random.sample(TRIVIA_QUESTIONS, len(TRIVIA_QUESTIONS))
+
+    while asked < total_questions:
+
+        q = questions[asked % len(questions)]
+        print(f"{current_time()} Q{asked+1}: {q['question']}")
+        for opt in q["options"]:
+            print(f"   {opt}")
+
+        user_answer = input(f"{current_time()} Your answer (A/B/C/D): ").strip().upper()
+
+        # Exit trivia mode
+        if user_answer.lower() == "trivia":
+            print(f"{current_time()} Exiting Trivia mode early.")
+            print(f"{current_time()} Your score: {score}/{asked}\n")
+            return
+
+        # Validate
+        if user_answer == q["correct"]:
+            print(f"{current_time()} Correct!\n")
+            score += 1
+        else:
+            print(f"{current_time()} Incorrect! Correct answer: {q['correct']}\n")
+
+        asked += 1
+
+    # Game ends after 10 questions
+    print(f"{current_time()} Trivia complete! Your final score: {score}/{total_questions}\n")
+
+def setup_logging(enable_log: bool, log_level: str, log_file: str, enable_debug: bool):
+    """
+    Unified logging setup:
+    - Console shows DEBUG if --debug is used, WARNING otherwise.
+    - Log file stores only INFO and WARNING messages when --log is enabled.
+    - Debug messages are NOT written to log file (not required by assignment).
+    """
+    root = logging.getLogger()
+    root.setLevel(logging.DEBUG)  # Master level, handlers decide what to output
+
+    # Remove old handlers to prevent duplicates
+    if root.handlers:
+        for h in list(root.handlers):
+            root.removeHandler(h)
+
+    # ---------------------------
+    # Console Handler
+    # ---------------------------
+    console_handler = logging.StreamHandler()
+    console_handler.setFormatter(logging.Formatter("%(asctime)s %(levelname)s %(message)s"))
+
+    if enable_debug:
+        console_handler.setLevel(logging.DEBUG)   # Show detailed debug info on console
+    else:
+        console_handler.setLevel(logging.WARNING) # Normal run → only warnings on console
+
+    root.addHandler(console_handler)
+
+    # ---------------------------
+    # File Handler (only if --log is set)
+    # ---------------------------
+    if enable_log:
+        file_handler = logging.FileHandler(log_file, mode="a", encoding="utf-8")
+        file_handler.setFormatter(logging.Formatter("%(asctime)s %(levelname)s %(message)s"))
+        file_handler.setLevel(getattr(logging, log_level.upper()))  # INFO or WARNING
+        root.addHandler(file_handler)
+
+    return root
+
+
 def main():
-    parser = argparse.ArgumentParser(description="TerminalTalk - A Terminal Chatbot")
+    # parser = argparse.ArgumentParser(description="TerminalTalk - A Terminal Chatbot")
+    parser = CustomArgumentParser(description="TerminalTalk - A Terminal Chatbot")
+
     mode_group = parser.add_mutually_exclusive_group()
     mode_group.add_argument("--add",action="store_true",help="Add a question/answer to the internal list",)
     mode_group.add_argument("--remove",action="store_true",help="Remove a question from the internal list",)
@@ -522,19 +757,42 @@ def main():
     parser.add_argument("--filepath",type=str,help="Path to the import file (e.g. ./qa.csv)",)
     
     parser.add_argument("--list-questions",action="store_true",help="List all known questions and exit",)
+    
+    parser.add_argument("--log", action="store_true", help="Enable logging")
+    parser.add_argument("--log-level", default="WARNING", choices=["INFO", "WARNING"], help="Logging level")
+    parser.add_argument("--log-file", default="terminaltalk.log", help="Log file path")
+
+    parser.add_argument(
+        "--debug",
+        action="store_true",
+        help="Enable debug mode for developers (prints internal diagnostic information)"
+    )
+
     args = parser.parse_args()
+
+
+    # Setup logging once, correctly
+    logger = setup_logging(
+        enable_log=args.log,
+        log_level=args.log_level,
+        log_file=args.log_file,
+        enable_debug=args.debug
+    )
+
+    if args.debug:
+        print(f"{current_time()} DEBUG MODE ENABLED")
+        logger.debug("Debugging mode initialized.")
+
+    if args.log:
+        logger.info("Logging enabled at level %s (file: %s)", args.log_level, args.log_file)
 
     if args.import_mode:
         if not args.filepath:
             print(f"{current_time()} ERROR: --import was used but no --filepath was provided.")
             print(f"{current_time()} Using internal questions instead.")
         else:
-            if args.filetype.lower() == "csv":
-                load_questions_from_csv(args.filepath)
-            else:
-                print(f"{current_time()} ERROR: Unsupported filetype '{args.filetype}'. Only 'CSV' is supported.")
-                print(f"{current_time()} Using internal questions instead.")
-
+            safe_import_csv(args.filepath)
+    
     if args.add:
         if not args.question:
             print(f"{current_time()} ERROR: --add requires --question.")
